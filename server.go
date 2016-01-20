@@ -3,14 +3,14 @@ package main
 import (
 	"fmt"
 	"net"
-//	"regexp"
 	"bufio"
 	"strings"
-//	"sync"
+	"sync"
 	"strconv"
 	"io"
 	"time"
 	"math"
+	"sync/atomic"
 )
 
 type File struct {
@@ -23,6 +23,7 @@ type File struct {
 
 var psuedoTime uint64 = 0
 const initialVersionNo uint64 = 1
+var mapLock sync.RWMutex
 var fileSystem map[string]File
 
 func writeFile(conn net.Conn ,cmdTokens []string) {
@@ -58,9 +59,8 @@ func writeFile(conn net.Conn ,cmdTokens []string) {
 		expTime = psuedoTime + expTimeUser
 	}
 	var versionNo uint64 = initialVersionNo
+	mapLock.Lock()
 	if fileObj, ok := fileSystem[cmdTokens[1]]; ok  {
-//	if _, ok := fileSystem[cmdTokens[1]]; ok  {
-		// present in dict
 		fileObj.fileContent = contentBuffer
 		fileObj.fileVersionNo += 1
 		fileObj.fileSize = fileSize
@@ -70,20 +70,21 @@ func writeFile(conn net.Conn ,cmdTokens []string) {
 	} else {
 		fileSystem[cmdTokens[1]] = File{cmdTokens[1],fileSize, initialVersionNo, expTime, contentBuffer}
 	}
-//	conn.Write([]byte("OK " + fileObj.fileVersionNo + "\r\n"))
+	mapLock.Unlock()
 	conn.Write([]byte("OK " + strconv.FormatUint(versionNo,10) + "\r\n"))
 }
 
 func readFile(conn net.Conn, cmdTokens []string) {
 	fmt.Println("Inside read file")
-	if fileObj, ok := fileSystem[cmdTokens[1]]; !ok || fileObj.fileExpTime < psuedoTime {
+	mapLock.RLock()
+	fileObj, ok := fileSystem[cmdTokens[1]]
+	mapLock.RUnlock()
+	if !ok || fileObj.fileExpTime < psuedoTime {
 		conn.Write([]byte("ERR_FILE_NOT_FOUND\r\n"))
 		return
         } else {
 		expTime := ""
 		if fileObj.fileExpTime != math.MaxUint64 {
-			fmt.Println("psuedoTime" + strconv.FormatUint(psuedoTime,10))
-			fmt.Println("fileObj.fileExpTime" + strconv.FormatUint(fileObj.fileExpTime,10))
 			expTime = " " + strconv.FormatUint(fileObj.fileExpTime-psuedoTime,10)
 		}
 		returnVal := "CONTENTS " + strconv.FormatUint(fileObj.fileVersionNo, 10) + " " + strconv.FormatUint(fileObj.fileSize, 10) + expTime + "\r\n"
@@ -110,13 +111,16 @@ func casFile(conn net.Conn, cmdTokens []string) {
 		conn.Close()
 		return
 	}
+	fmt.Println("no error in readinf buff")
 	// Reading and discarding "\r\n"
 	bufio.NewReader(conn).ReadByte()
+	fmt.Println("read slash ")
 	versionNo, err2 := strconv.ParseUint(cmdTokens[2],10,64)
 	if err2 != nil {
 		conn.Write([]byte("ERR_CMD_ERR\r\n"))
 		return
 	}
+	fmt.Println("version no read")
 	var expTimeUser uint64
 	var err3 error
 	var expTime uint64 = math.MaxUint64
@@ -127,35 +131,44 @@ func casFile(conn net.Conn, cmdTokens []string) {
 			return
 		}
 		expTime = psuedoTime + expTimeUser
+	fmt.Println("exp time calculated")
 	}
 	var fileObj File
 	var ok bool
+	mapLock.Lock()
+	fmt.Println("lock aquired")
 	if fileObj, ok = fileSystem[cmdTokens[1]]; !ok  {
 		conn.Write([]byte("ERR_FILE_NOT_FOUND\r\n"))
+		mapLock.Unlock()
 		return
-        } else {
-		if versionNo != fileObj.fileVersionNo {
-			conn.Write([]byte("ERR_VERSION\r\n"))
-			return
-		}
-		fileObj.fileVersionNo += 1
-		fileObj.fileContent = contentBuffer
-		fileObj.fileSize = fileSize
-		fileObj.fileExpTime = expTime
-		fileSystem[cmdTokens[1]] = fileObj
-	        conn.Write([]byte("OK " + strconv.FormatUint(fileSystem[cmdTokens[1]].fileVersionNo,10) + "\r\n"))
+        }
+	fmt.Println("file found")
+	if versionNo != fileObj.fileVersionNo {
+		conn.Write([]byte("ERR_VERSION\r\n"))
+		mapLock.Unlock()
+		return
 	}
+	fmt.Println("version matched")
+	fileObj.fileVersionNo += 1
+	fileObj.fileContent = contentBuffer
+	fileObj.fileSize = fileSize
+	fileObj.fileExpTime = expTime
+	fileSystem[cmdTokens[1]] = fileObj
+	mapLock.Unlock()
+	conn.Write([]byte("OK " + strconv.FormatUint(fileObj.fileVersionNo,10) + "\r\n"))
 }
 
 func deleteFile(conn net.Conn, cmdTokens []string) {
 	fmt.Println("Inside delete file")
-	if _, ok := fileSystem[cmdTokens[1]]; !ok  {
+	mapLock.Lock()
+	if fileObj, ok := fileSystem[cmdTokens[1]]; !ok || fileObj.fileExpTime < psuedoTime  {
 		conn.Write([]byte("ERR_FILE_NOT_FOUND\r\n"))
+		mapLock.Unlock()
 		return
-        } else {
-		delete(fileSystem, cmdTokens[1])
-		conn.Write([]byte("OK\r\n"))
-	}
+        }
+	delete(fileSystem, cmdTokens[1])
+	mapLock.Unlock()
+	conn.Write([]byte("OK\r\n"))
 }
 
 func processCommand(conn net.Conn, command string) {
@@ -229,7 +242,7 @@ func incTimer() {
 	ticker := time.NewTicker(time.Second * 1)
 	go func() {
 		for _ = range ticker.C {
-			psuedoTime += 1
+			atomic.AddUint64(&psuedoTime, 1)
 		}
 	}()
 }
