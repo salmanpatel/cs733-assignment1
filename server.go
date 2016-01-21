@@ -26,9 +26,9 @@ const initialVersionNo uint64 = 1
 var mapLock sync.RWMutex
 var fileSystem map[string]File
 
-func writeFile(conn net.Conn ,cmdTokens []string) {
+func writeFile(reader *bufio.Reader, conn net.Conn ,cmdTokens []string) {
 	fmt.Println("Inside write file")
-	conn.Write([]byte(""))
+//	conn.Write([]byte(""))
 	fileSize, err := strconv.ParseUint(cmdTokens[2],10,64)
 	if err != nil {
 		conn.Write([]byte("ERR_CMD_ERR\r\n"))
@@ -36,16 +36,17 @@ func writeFile(conn net.Conn ,cmdTokens []string) {
 		return
 	}
 	var contentBuffer []byte = make([]byte,fileSize)
-	n, err := io.ReadFull(conn, contentBuffer)
-//	fmt.Println(contentBuffer)
-//	fmt.Println(n)
+	n, err := io.ReadFull(reader, contentBuffer)
+	fmt.Println(contentBuffer)
+	fmt.Println(n)
 	if err != nil || uint64(n) < fileSize {
 		conn.Write([]byte("ERR_INTERNAL\r\n"))
 		conn.Close()
 		return
 	}
 	// Reading and discarding "\r\n"
-	bufio.NewReader(conn).ReadByte()
+	reader.ReadByte()
+	reader.ReadByte()
 //	bufio.NewReader(conn).ReadByte()
 //	contentBuffer = nil
 	var expTimeUser uint64
@@ -93,9 +94,9 @@ func readFile(conn net.Conn, cmdTokens []string) {
 	}
 }
 
-func casFile(conn net.Conn, cmdTokens []string) {
+func casFile(reader *bufio.Reader, conn net.Conn, cmdTokens []string) {
 	fmt.Println("Inside CAS file")
-	conn.Write([]byte(""))
+//	conn.Write([]byte(""))
 	fileSize, err1 := strconv.ParseUint(cmdTokens[3],10,64)
 	if err1 != nil  {
 		conn.Write([]byte("ERR_CMD_ERR\r\n"))
@@ -103,7 +104,7 @@ func casFile(conn net.Conn, cmdTokens []string) {
 		return
 	}
 	var contentBuffer []byte = make([]byte,fileSize)
-	n, err := io.ReadFull(conn, contentBuffer)
+	n, err := io.ReadFull(reader, contentBuffer)
 	fmt.Println(contentBuffer)
 	fmt.Println(n)
 	if err != nil || uint64(n) < fileSize {
@@ -111,16 +112,17 @@ func casFile(conn net.Conn, cmdTokens []string) {
 		conn.Close()
 		return
 	}
-	fmt.Println("no error in readinf buff")
+//	fmt.Println("no error in readinf buff")
 	// Reading and discarding "\r\n"
-	bufio.NewReader(conn).ReadByte()
-	fmt.Println("read slash ")
+	reader.ReadByte()
+	reader.ReadByte()
+//	fmt.Println("read slash ")
 	versionNo, err2 := strconv.ParseUint(cmdTokens[2],10,64)
 	if err2 != nil {
 		conn.Write([]byte("ERR_CMD_ERR\r\n"))
 		return
 	}
-	fmt.Println("version no read")
+//	fmt.Println("version no read")
 	var expTimeUser uint64
 	var err3 error
 	var expTime uint64 = math.MaxUint64
@@ -131,24 +133,25 @@ func casFile(conn net.Conn, cmdTokens []string) {
 			return
 		}
 		expTime = psuedoTime + expTimeUser
-	fmt.Println("exp time calculated")
+//	fmt.Println("exp time calculated")
 	}
 	var fileObj File
 	var ok bool
 	mapLock.Lock()
-	fmt.Println("lock aquired")
+//	fmt.Println("lock aquired")
 	if fileObj, ok = fileSystem[cmdTokens[1]]; !ok  {
-		conn.Write([]byte("ERR_FILE_NOT_FOUND\r\n"))
 		mapLock.Unlock()
+		conn.Write([]byte("ERR_FILE_NOT_FOUND\r\n"))
 		return
         }
-	fmt.Println("file found")
+//	fmt.Println("file found")
 	if versionNo != fileObj.fileVersionNo {
-		conn.Write([]byte("ERR_VERSION\r\n"))
+		newVersion := fileObj.fileVersionNo
 		mapLock.Unlock()
+		conn.Write([]byte("ERR_VERSION " + strconv.FormatUint(newVersion,10) + "\r\n"))
 		return
 	}
-	fmt.Println("version matched")
+//	fmt.Println("version matched")
 	fileObj.fileVersionNo += 1
 	fileObj.fileContent = contentBuffer
 	fileObj.fileSize = fileSize
@@ -171,9 +174,10 @@ func deleteFile(conn net.Conn, cmdTokens []string) {
 	conn.Write([]byte("OK\r\n"))
 }
 
-func processCommand(conn net.Conn, command string) {
+func processCommand(reader *bufio.Reader, conn net.Conn, command string) {
 	tokens := strings.Fields(command)
 	if(len(tokens) == 0) {
+		conn.Write([]byte("ERR_CMD_ERR\r\n"))
 		return
 	}
 	fmt.Printf("tokens %v\n", tokens)
@@ -181,7 +185,7 @@ func processCommand(conn net.Conn, command string) {
 	switch tokens[0] {
 		 case "write":
 			if len(tokens)==3 || len(tokens)==4 {
-				writeFile(conn, tokens)
+				writeFile(reader, conn, tokens)
 			} else {
 				conn.Write([]byte("ERR_CMD_ERR\r\n"))
 			}
@@ -193,7 +197,7 @@ func processCommand(conn net.Conn, command string) {
 			}
 		 case "cas":
 			if len(tokens)==4 || len(tokens)==5 {
-				casFile(conn, tokens)
+				casFile(reader, conn, tokens)
 			} else {
 				conn.Write([]byte("ERR_CMD_ERR\r\n"))
 			}
@@ -206,22 +210,26 @@ func processCommand(conn net.Conn, command string) {
 		 default:
 			fmt.Println("Bad Command")
 			conn.Write([]byte("ERR_CMD_ERR\r\n"))
+			conn.Close()
 	}
 }
 
 func handleClient(c net.Conn) {
 	fmt.Printf("Client %v connected.\n", c.RemoteAddr())
+	reader := bufio.NewReader(c)
 	for {
 		fmt.Println("Waiting for command")
-		buffer,_ := bufio.NewReader(c).ReadString('\n')
+		buffer,_ := reader.ReadString('\n')
 		fmt.Printf("Message Read : %s", buffer)
-		processCommand(c, buffer)
+		processCommand(reader, c, buffer)
 		fmt.Println("Command processed")
 	}
 //	fmt.Printf("Client connection closed from %v.\n", c.RemoteAddr())
 }
 
 func serverMain() {
+	go incTimer()
+	fileSystem = make(map[string]File)
 	listenPort := "8080"
 	listenConn, err := net.Listen("tcp", ":"+listenPort)
 	if err != nil {
@@ -248,7 +256,5 @@ func incTimer() {
 }
 
 func main() {
-	go incTimer()
-	fileSystem = make(map[string]File)
 	serverMain()
 }
