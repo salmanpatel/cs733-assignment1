@@ -14,7 +14,7 @@ Roll: 143050030
 * Automated testing is provided with Go's testing framework
 
 ### Installation Instructions
-<code>go get </code> github.com/jain7aman/cs733/assignment1
+<code>go get </code> github.com/salmanpatel/cs733/assignment1
 
 Two files are supposed to be there <br/>
 1. server.go contains the code where all the commands are implemented and where server listens for the request <br/>
