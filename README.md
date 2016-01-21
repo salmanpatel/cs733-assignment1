@@ -1,10 +1,10 @@
 # cs733-assignment1
 
 
-## Assignment 1- File Server
+## CS733(Spring-2015) - Assignment 1 - File Server
 
-First assignment for course CS733, Spring-2015  
-Submitted by: Mohammedsalman Patel, Roll: 143050030
+Submitted by: Mohammedsalman Patel
+Roll: 143050030
 
 ### Introduction
 * This is a single server for a versioned files to be stored and retrieved by the server 
@@ -25,10 +25,10 @@ To run the program only below command is needed (assuming the current directory 
 
 
 ### How to use?
-Run the server by "go run server.go" in one terminal from the assignment1 directory.
-Run "telnet localhost 8080" on a different terminal to connect with the server as a telnet client.
-The server supports multiple client connections by executing same command on different terminals and allows concurrent execution of these clients.
-Once a connection is established one of the commands given in specification below can be run by a user through a client.
+* Run the server by "go run server.go" in one terminal from the assignment1 directory.
+* Run "telnet localhost 8080" on a different terminal to connect with the server as a telnet client.
+* The server supports multiple client connections by executing same command on different terminals and allows concurrent execution of these clients.
+* Once a connection is established one of the commands given in specification below can be run by a user through a client.
 
 ### Specification
 * Write: create a file, or update the file’s contents if it already exists.
