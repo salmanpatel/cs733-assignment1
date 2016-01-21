@@ -23,6 +23,7 @@ type File struct {
 
 var psuedoTime uint64 = 0
 const initialVersionNo uint64 = 1
+const maxCmdSize uint64 = 2
 var mapLock sync.RWMutex
 var fileSystem map[string]File
 
@@ -36,17 +37,28 @@ func writeFile(reader *bufio.Reader, conn net.Conn ,cmdTokens []string) {
 		return
 	}
 	var contentBuffer []byte = make([]byte,fileSize)
-	n, err := io.ReadFull(reader, contentBuffer)
-	fmt.Println(contentBuffer)
-	fmt.Println(n)
-	if err != nil || uint64(n) < fileSize {
+	c := make(chan bool)
+	go func(){
+		select{
+                        case <-time.After(60 * time.Second):
+                                conn.Write([]byte("ERR_INTERNAL\r\n"))
+                                conn.Close()
+                                return
+                        case <-c:
+                }
+        }()
+	_, err = io.ReadFull(reader, contentBuffer)
+	c <- true
+	byte1,err1 := reader.ReadByte()
+	byte2,err2 := reader.ReadByte()
+//	fmt.Println(contentBuffer)
+//	fmt.Println(n)
+	if byte1!='\r' || byte2!='\n' || err != nil || err1 !=nil || err2!=nil {
 		conn.Write([]byte("ERR_INTERNAL\r\n"))
 		conn.Close()
 		return
 	}
 	// Reading and discarding "\r\n"
-	reader.ReadByte()
-	reader.ReadByte()
 //	bufio.NewReader(conn).ReadByte()
 //	contentBuffer = nil
 	var expTimeUser uint64
@@ -104,18 +116,31 @@ func casFile(reader *bufio.Reader, conn net.Conn, cmdTokens []string) {
 		return
 	}
 	var contentBuffer []byte = make([]byte,fileSize)
-	n, err := io.ReadFull(reader, contentBuffer)
-	fmt.Println(contentBuffer)
-	fmt.Println(n)
-	if err != nil || uint64(n) < fileSize {
+	c := make(chan bool)
+	go func(){
+                select{
+                        case <-time.After(60 * time.Second):
+                                conn.Write([]byte("ERR_INTERNAL\r\n"))
+                                conn.Close()
+                                return
+                        case <-c:
+                }
+        }()
+	_, readErr := io.ReadFull(reader, contentBuffer)
+	c <- true
+	byte1, readErr1 := reader.ReadByte()
+	byte2, readErr2 := reader.ReadByte()
+//	fmt.Println(contentBuffer)
+//	fmt.Println(n)
+	if byte1!='\r' || byte2!='\n' || readErr != nil || readErr1 !=nil || readErr2!=nil {
 		conn.Write([]byte("ERR_INTERNAL\r\n"))
 		conn.Close()
 		return
 	}
+//	fmt.Println(contentBuffer)
+//	fmt.Println(n)
 //	fmt.Println("no error in readinf buff")
 	// Reading and discarding "\r\n"
-	reader.ReadByte()
-	reader.ReadByte()
 //	fmt.Println("read slash ")
 	versionNo, err2 := strconv.ParseUint(cmdTokens[2],10,64)
 	if err2 != nil {
@@ -217,11 +242,20 @@ func processCommand(reader *bufio.Reader, conn net.Conn, command string) {
 func handleClient(c net.Conn) {
 	fmt.Printf("Client %v connected.\n", c.RemoteAddr())
 	reader := bufio.NewReader(c)
+	buffer := make([]byte, maxCmdSize)
+	var isPrefix bool
+	var err error
 	for {
 		fmt.Println("Waiting for command")
-		buffer,_ := reader.ReadString('\n')
-		fmt.Printf("Message Read : %s", buffer)
-		processCommand(reader, c, buffer)
+		buffer,isPrefix,err = reader.ReadLine()
+		fmt.Println(isPrefix)
+		if isPrefix || err!=nil {
+                        c.Write([]byte("ERR_CMD_ERR\r\n"))
+                        c.Close()
+			return
+		}
+		fmt.Printf("Message Read : %s\n", buffer)
+		processCommand(reader, c, string(buffer))
 		fmt.Println("Command processed")
 	}
 //	fmt.Printf("Client connection closed from %v.\n", c.RemoteAddr())
