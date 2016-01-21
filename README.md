@@ -56,7 +56,7 @@ read <filename>\r\n
 The server responds with the following format if file is present at the server.
 ```
 CONTENTS <version> <numbytes> <exptime> \r\n
- <content bytes>\r\n  
+<content bytes>\r\n  
 ```
 Here ```<exptime> ```is the remaining time in seconds left for the file after which it will expire. Zero v alue indicates that the file won't expire.
 
@@ -69,7 +69,7 @@ ERR_FILE_NOT_FOUND\r\n
 provided the version is still the same.
 ```
 cas <filename> <version> <numbytes> [<exptime>]\r\n
- <content bytes>\r\n
+<content bytes>\r\n
 ```
 exptime is optional and means the same thing as in "write" command.
 
