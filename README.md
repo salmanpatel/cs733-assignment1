@@ -118,17 +118,14 @@ The testing is divided into 2 parts:
 * single client server communication
 * concurrent execution of multiple clients
 
-For a single client server communication all possible scenarios along with corner cases are tested. This program runs serially.
+For a single client server communication some scenarios along with corner cases are tested. This program runs serially.
 
 For each of the test cases the client sends a command to the server, reads the response and checks the result with the specified expected result mentioned in the test case.
 
 For concurrent test cases, following test cases are considered:-
-* 20 clients are spawned, out of these 10 clients execute normal routines commands on the file server. Each of these 10 clients operate on different files and write different contents. 
-Each of the other 10 clients performs "write", "read", "cas" and "delete" operations (these operations also execute in parallel) on single file concurrently.
-
-* 20 clients are spawned, out of these 10 clients perform write operation and other 10 performs cas operation on the same file in a loop. After their execution is complete, we check contents of the file and match it against the expected response ( which would the content written by any of the clients in their last iteration).
-
-* 20 clients are spawned and each of them tries to perform cas operation on the same file. In this only one should succeed and others should get ```ERR_VERSION ``` error.
+* Multiple clients are spawned, all of them execute normal routines commands on the file server. Each of them operate on different files and write different contents. 
+Each of them performs "write", "read", "cas" and "delete" operations (these operations also execute in parallel) on single file concurrently.
+* Multiple clients are spawned and each of them tries to perform cas operation on the same file. In this only one should succeed and others should get ```ERR_VERSION ``` error.
 
 
 ### Programming Details
