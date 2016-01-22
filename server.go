@@ -233,7 +233,7 @@ func processCommand(reader *bufio.Reader, conn net.Conn, command string) {
 				conn.Write([]byte("ERR_CMD_ERR\r\n"))
 			}
 		 default:
-			fmt.Println("Bad Command")
+//			fmt.Println("Bad Command")
 			conn.Write([]byte("ERR_CMD_ERR\r\n"))
 			conn.Close()
 	}
