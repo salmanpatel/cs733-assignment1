@@ -28,7 +28,7 @@ var mapLock sync.RWMutex
 var fileSystem map[string]File
 
 func writeFile(reader *bufio.Reader, conn net.Conn ,cmdTokens []string) {
-	fmt.Println("Inside write file")
+//	fmt.Println("Inside write file")
 //	conn.Write([]byte(""))
 	fileSize, err := strconv.ParseUint(cmdTokens[2],10,64)
 	if err != nil {
@@ -88,7 +88,7 @@ func writeFile(reader *bufio.Reader, conn net.Conn ,cmdTokens []string) {
 }
 
 func readFile(conn net.Conn, cmdTokens []string) {
-	fmt.Println("Inside read file")
+//	fmt.Println("Inside read file")
 	mapLock.RLock()
 	fileObj, ok := fileSystem[cmdTokens[1]]
 	mapLock.RUnlock()
@@ -107,7 +107,7 @@ func readFile(conn net.Conn, cmdTokens []string) {
 }
 
 func casFile(reader *bufio.Reader, conn net.Conn, cmdTokens []string) {
-	fmt.Println("Inside CAS file")
+//	fmt.Println("Inside CAS file")
 //	conn.Write([]byte(""))
 	fileSize, err1 := strconv.ParseUint(cmdTokens[3],10,64)
 	if err1 != nil  {
@@ -187,7 +187,7 @@ func casFile(reader *bufio.Reader, conn net.Conn, cmdTokens []string) {
 }
 
 func deleteFile(conn net.Conn, cmdTokens []string) {
-	fmt.Println("Inside delete file")
+//	fmt.Println("Inside delete file")
 	mapLock.Lock()
 	if fileObj, ok := fileSystem[cmdTokens[1]]; !ok || fileObj.fileExpTime < psuedoTime  {
 		conn.Write([]byte("ERR_FILE_NOT_FOUND\r\n"))
@@ -205,8 +205,8 @@ func processCommand(reader *bufio.Reader, conn net.Conn, command string) {
 		conn.Write([]byte("ERR_CMD_ERR\r\n"))
 		return
 	}
-	fmt.Printf("tokens %v\n", tokens)
-	fmt.Printf("length of tokens %v\n", len(tokens))
+//	fmt.Printf("tokens %v\n", tokens)
+//	fmt.Printf("length of tokens %v\n", len(tokens))
 	switch tokens[0] {
 		 case "write":
 			if len(tokens)==3 || len(tokens)==4 {
@@ -240,23 +240,23 @@ func processCommand(reader *bufio.Reader, conn net.Conn, command string) {
 }
 
 func handleClient(c net.Conn) {
-	fmt.Printf("Client %v connected.\n", c.RemoteAddr())
+//	fmt.Printf("Client %v connected.\n", c.RemoteAddr())
 	reader := bufio.NewReader(c)
 	buffer := make([]byte, maxCmdSize)
 	var isPrefix bool
 	var err error
 	for {
-		fmt.Println("Waiting for command")
+//		fmt.Println("Waiting for command")
 		buffer,isPrefix,err = reader.ReadLine()
-		fmt.Println(isPrefix)
+//		fmt.Println(isPrefix)
 		if isPrefix || err!=nil {
                         c.Write([]byte("ERR_CMD_ERR\r\n"))
                         c.Close()
 			return
 		}
-		fmt.Printf("Message Read : %s\n", buffer)
+//		fmt.Printf("Message Read : %s\n", buffer)
 		processCommand(reader, c, string(buffer))
-		fmt.Println("Command processed")
+//		fmt.Println("Command processed")
 	}
 //	fmt.Printf("Client connection closed from %v.\n", c.RemoteAddr())
 }
@@ -269,7 +269,7 @@ func serverMain() {
 	if err != nil {
 		fmt.Println("Error opening Listen Socket on %s port", listenPort)
 	}
-	fmt.Printf("Server up and listening on port %s\n", listenPort)
+//	fmt.Printf("Server up and listening on port %s\n", listenPort)
 	for {
 		conn, err := listenConn.Accept()
 		if err != nil {
